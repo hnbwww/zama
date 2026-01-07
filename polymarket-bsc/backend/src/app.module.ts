@@ -6,6 +6,7 @@ import { TradingModule } from './modules/trading/trading.module';
 import { OrderbookModule } from './modules/orderbook/orderbook.module';
 import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
+import { OracleModule } from './modules/oracle/oracle.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { WebsocketModule } from './modules/websocket/websocket.module';
     OrderbookModule,
     BlockchainModule,
     WebsocketModule,
+    OracleModule,
   ],
 })
 export class AppModule {}

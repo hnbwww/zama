@@ -21,8 +21,10 @@ model Market {
   // Settlement
   settlementTime    DateTime
   settlementSource  String?
-  resolutionResult  Boolean?
-  status            MarketStatus @default(ACTIVE)
+  outcome           Int? // 0 = NO, 1 = YES, 2 = INVALID/VOIDED
+  resolvedAt        DateTime?
+  voidReason        String?
+  status            MarketStatus @default(OPEN)
 
   // Statistics
   totalVolume       Decimal  @default(0) @db.Decimal(20, 6)
@@ -39,6 +41,7 @@ model Market {
   trades            Trade[]
   positions         Position[]
   liquidityPositions LiquidityPosition[]
+  oracleRequests    OracleRequest[]
 
   @@index([category])
   @@index([status])
@@ -47,10 +50,79 @@ model Market {
 }
 
 enum MarketStatus {
-  ACTIVE
-  RESOLVED
-  DISPUTED
-  CANCELLED
+  OPEN          // Trading active
+  CLOSED        // Trading stopped, awaiting resolution
+  RESOLVING     // Oracle resolution in progress
+  RESOLVED      // Final outcome determined
+  VOIDED        // Market cancelled/invalid
+}
+
+// Oracle Resolution Models
+
+model OracleRequest {
+  id                  String              @id @default(uuid())
+  conditionId         String              @unique
+  marketId            String
+
+  question            String
+  resolutionSource    String?
+
+  // Status
+  status              OracleRequestStatus @default(REQUESTED)
+
+  // Proposal
+  proposedOutcome     Int?
+  proposerAddress     String?
+  proposedAt          DateTime?
+  challengeDeadline   DateTime?
+
+  // Dispute
+  disputerAddress     String?
+  disputeReason       String?
+  disputedAt          DateTime?
+
+  // Final resolution
+  finalOutcome        Int?
+  resolvedAt          DateTime?
+
+  // Void
+  voidReason          String?
+
+  // Timestamps
+  requestedAt         DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  market              Market              @relation(fields: [marketId], references: [id])
+  disputes            OracleDispute[]
+
+  @@index([marketId])
+  @@index([status])
+  @@index([proposerAddress])
+}
+
+enum OracleRequestStatus {
+  REQUESTED   // Request created, awaiting proposal
+  PROPOSED    // Outcome proposed, in challenge window
+  DISPUTED    // Proposal disputed, awaiting arbitration
+  RESOLVED    // Final resolution confirmed
+  VOIDED      // Market voided/cancelled
+}
+
+model OracleDispute {
+  id                  String   @id @default(uuid())
+  conditionId         String
+
+  disputerAddress     String
+  reason              String
+
+  createdAt           DateTime @default(now())
+
+  // Relations
+  request             OracleRequest @relation(fields: [conditionId], references: [conditionId])
+
+  @@index([conditionId])
+  @@index([disputerAddress])
 }
 
 model Order {
