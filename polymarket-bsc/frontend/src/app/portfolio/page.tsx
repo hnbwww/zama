@@ -14,6 +14,7 @@ import {
   generateTradingSummary,
 } from '@/lib/utils/export';
 import { PositionPieChart } from '@/components/charts/PositionPieChart';
+import { BatchRedeem } from '@/components/portfolio/BatchRedeem';
 
 export default function PortfolioPage() {
   const { address, isConnected } = useAccount();
@@ -94,12 +95,19 @@ export default function PortfolioPage() {
               </div>
             </div>
 
-            {/* Export Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-              >
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              {/* Batch Redeem */}
+              {positions && positions.length > 0 && (
+                <BatchRedeem positions={positions} />
+              )}
+
+              {/* Export Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -185,6 +193,7 @@ export default function PortfolioPage() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
