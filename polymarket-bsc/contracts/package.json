@@ -1,0 +1,32 @@
+{
+  "name": "polymarket-bsc-contracts",
+  "version": "1.0.0",
+  "description": "Polymarket Clone Smart Contracts on BSC",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network bscTestnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network bscMainnet",
+    "verify": "hardhat verify --network bscMainnet",
+    "coverage": "hardhat coverage"
+  },
+  "keywords": ["prediction-market", "bsc", "defi", "polymarket"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.0.0",
+    "hardhat": "^2.19.0",
+    "hardhat-gas-reporter": "^1.0.9"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.1",
+    "@openzeppelin/contracts-upgradeable": "^5.0.1",
+    "dotenv": "^16.3.1"
+  }
+}

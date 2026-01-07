@@ -1,0 +1,223 @@
+// Prisma Schema for Polymarket BSC
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Market {
+  id                String   @id @default(uuid())
+  conditionId       String   @unique
+  title             String
+  description       String
+  category          String
+  creatorAddress    String
+  contractAddress   String?
+
+  // Settlement
+  settlementTime    DateTime
+  settlementSource  String?
+  resolutionResult  Boolean?
+  status            MarketStatus @default(ACTIVE)
+
+  // Statistics
+  totalVolume       Decimal  @default(0) @db.Decimal(20, 6)
+  liquidity         Decimal  @default(0) @db.Decimal(20, 6)
+  yesPrice          Decimal? @db.Decimal(10, 6)
+  noPrice           Decimal? @db.Decimal(10, 6)
+
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  orders            Order[]
+  trades            Trade[]
+  positions         Position[]
+  liquidityPositions LiquidityPosition[]
+
+  @@index([category])
+  @@index([status])
+  @@index([settlementTime])
+  @@index([creatorAddress])
+}
+
+enum MarketStatus {
+  ACTIVE
+  RESOLVED
+  DISPUTED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  marketId        String
+  userAddress     String
+
+  // Order info
+  side            OrderSide
+  outcome         Outcome
+  orderType       OrderType
+  price           Decimal?    @db.Decimal(10, 6)
+  size            Decimal     @db.Decimal(20, 6)
+  filled          Decimal     @default(0) @db.Decimal(20, 6)
+
+  // Status
+  status          OrderStatus @default(PENDING)
+
+  // Blockchain
+  txHash          String?     @unique
+  signature       String
+  nonce           BigInt
+  expiry          DateTime?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  market          Market      @relation(fields: [marketId], references: [id])
+  buyTrades       Trade[]     @relation("BuyOrders")
+  sellTrades      Trade[]     @relation("SellOrders")
+
+  @@index([marketId, userAddress])
+  @@index([status])
+  @@index([price])
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum Outcome {
+  YES
+  NO
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  PENDING
+  FILLED
+  PARTIALLY_FILLED
+  CANCELLED
+  EXPIRED
+}
+
+model Trade {
+  id              String   @id @default(uuid())
+  marketId        String
+
+  // Parties
+  buyerAddress    String
+  sellerAddress   String
+
+  // Trade info
+  outcome         Outcome
+  price           Decimal  @db.Decimal(10, 6)
+  size            Decimal  @db.Decimal(20, 6)
+
+  // Orders
+  buyOrderId      String?
+  sellOrderId     String?
+
+  // Blockchain
+  txHash          String   @unique
+  blockNumber     BigInt
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  market          Market   @relation(fields: [marketId], references: [id])
+  buyOrder        Order?   @relation("BuyOrders", fields: [buyOrderId], references: [id])
+  sellOrder       Order?   @relation("SellOrders", fields: [sellOrderId], references: [id])
+
+  @@index([marketId])
+  @@index([buyerAddress])
+  @@index([sellerAddress])
+  @@index([createdAt])
+}
+
+model Position {
+  id              String   @id @default(uuid())
+  marketId        String
+  userAddress     String
+
+  // Holdings
+  yesBalance      Decimal  @default(0) @db.Decimal(20, 6)
+  noBalance       Decimal  @default(0) @db.Decimal(20, 6)
+
+  // Cost basis
+  yesCostBasis    Decimal  @default(0) @db.Decimal(20, 6)
+  noCostBasis     Decimal  @default(0) @db.Decimal(20, 6)
+
+  // PnL
+  realizedPnl     Decimal  @default(0) @db.Decimal(20, 6)
+
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  market          Market   @relation(fields: [marketId], references: [id])
+
+  @@unique([marketId, userAddress])
+  @@index([userAddress])
+}
+
+model LiquidityPosition {
+  id              String   @id @default(uuid())
+  marketId        String
+  userAddress     String
+
+  // LP info
+  lpTokens        Decimal  @db.Decimal(20, 6)
+  usdcDeposited   Decimal  @db.Decimal(20, 6)
+
+  // Fees
+  feesEarned      Decimal  @default(0) @db.Decimal(20, 6)
+
+  // Blockchain
+  depositTxHash   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  market          Market   @relation(fields: [marketId], references: [id])
+
+  @@index([marketId, userAddress])
+}
+
+model User {
+  address         String   @id
+
+  // Statistics
+  totalTrades     Int      @default(0)
+  totalVolume     Decimal  @default(0) @db.Decimal(20, 6)
+  totalPnl        Decimal  @default(0) @db.Decimal(20, 6)
+
+  // Metadata
+  firstSeen       DateTime @default(now())
+  lastActive      DateTime @default(now())
+
+  @@index([totalVolume])
+  @@index([totalPnl])
+}
+
+model PriceHistory {
+  id              String   @id @default(uuid())
+  marketId        String
+
+  timestamp       DateTime @default(now())
+  yesPrice        Decimal  @db.Decimal(10, 6)
+  noPrice         Decimal  @db.Decimal(10, 6)
+  volume          Decimal  @db.Decimal(20, 6)
+
+  @@index([marketId, timestamp])
+}
