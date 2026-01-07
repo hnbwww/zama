@@ -13,6 +13,7 @@ import {
   formatOrdersForExport,
   generateTradingSummary,
 } from '@/lib/utils/export';
+import { PositionPieChart } from '@/components/charts/PositionPieChart';
 
 export default function PortfolioPage() {
   const { address, isConnected } = useAccount();
@@ -254,13 +255,22 @@ export default function PortfolioPage() {
 
         {/* Tab Content */}
         {activeTab === 'positions' && (
-          <div className="rounded-lg border">
-          <div className="border-b p-4">
-            <h2 className="text-xl font-semibold">Your Positions</h2>
-          </div>
-          <div>
-            {positions && positions.length > 0 ? (
-              positions.map((position: any) => (
+          <>
+            {/* Position Distribution Pie Chart */}
+            {positions && positions.length > 0 && (
+              <div className="mb-6 rounded-lg border p-6">
+                <h2 className="mb-4 text-xl font-semibold">Position Distribution</h2>
+                <PositionPieChart positions={positions} />
+              </div>
+            )}
+
+            <div className="rounded-lg border">
+              <div className="border-b p-4">
+                <h2 className="text-xl font-semibold">Your Positions</h2>
+              </div>
+              <div>
+                {positions && positions.length > 0 ? (
+                  positions.map((position: any) => (
                 <div key={position.id} className="border-b p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -297,8 +307,9 @@ export default function PortfolioPage() {
                 No positions yet. Start trading to see your positions here.
               </div>
             )}
-          </div>
-          </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Orders Tab */}
