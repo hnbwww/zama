@@ -1,23 +1,36 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { CreateMarketDto } from './dto/create-market.dto';
 import { QueryMarketsDto, MarketSortBy } from './dto/query-markets.dto';
 import { MarketStatus } from '@prisma/client';
 
 @Injectable()
 export class MarketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cacheService: CacheService,
+  ) {}
 
   /**
-   * 获取市场列表
+   * 获取市场列表（带缓存）
    */
   async findAll(query: QueryMarketsDto) {
     const { category, search, sortBy, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
+    // 生成缓存键
+    const cacheKey = `markets:list:${category}:${search}:${sortBy}:${page}:${limit}`;
+
+    // 尝试从缓存获取
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     // 构建查询条件
     const where: any = {
-      status: MarketStatus.ACTIVE,
+      status: MarketStatus.OPEN,
     };
 
     if (category && category !== 'all') {
@@ -26,7 +39,7 @@ export class MarketsService {
 
     if (search) {
       where.OR = [
-        { question: { contains: search, mode: 'insensitive' } },
+        { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -58,7 +71,7 @@ export class MarketsService {
       this.prisma.market.count({ where }),
     ]);
 
-    return {
+    const result = {
       data: markets,
       meta: {
         total,
@@ -67,12 +80,26 @@ export class MarketsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    // 缓存结果（30秒）
+    await this.cacheService.set(cacheKey, result, 30);
+
+    return result;
   }
 
   /**
-   * 获取单个市场详情
+   * 获取单个市场详情（带缓存）
    */
   async findOne(id: string) {
+    // 生成缓存键
+    const cacheKey = `market:${id}`;
+
+    // 尝试从缓存获取
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const market = await this.prisma.market.findUnique({
       where: { id },
       include: {
@@ -89,6 +116,9 @@ export class MarketsService {
     if (!market) {
       throw new NotFoundException(`Market with ID ${id} not found`);
     }
+
+    // 缓存结果（60秒）
+    await this.cacheService.set(cacheKey, market, 60);
 
     return market;
   }

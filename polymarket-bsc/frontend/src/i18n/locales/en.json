@@ -1,0 +1,126 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "connect_wallet": "Connect Wallet",
+    "disconnect": "Disconnect",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "all": "All",
+    "yes": "YES",
+    "no": "NO",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "confirm": "Confirm"
+  },
+  "nav": {
+    "markets": "Markets",
+    "portfolio": "Portfolio",
+    "create_market": "Create Market",
+    "leaderboard": "Leaderboard",
+    "docs": "Docs"
+  },
+  "market": {
+    "title": "Markets",
+    "volume": "Volume",
+    "liquidity": "Liquidity",
+    "ends_in": "Ends in",
+    "ended": "Ended",
+    "category": "Category",
+    "creator": "Creator",
+    "created_at": "Created at",
+    "resolution_time": "Resolution Time",
+    "resolution_source": "Resolution Source",
+    "status": {
+      "open": "Open",
+      "closed": "Closed",
+      "resolving": "Resolving",
+      "resolved": "Resolved",
+      "voided": "Voided"
+    }
+  },
+  "trading": {
+    "buy": "Buy",
+    "sell": "Sell",
+    "market_order": "Market Order",
+    "limit_order": "Limit Order",
+    "amount": "Amount",
+    "price": "Price",
+    "total": "Total",
+    "balance": "Balance",
+    "approve": "Approve",
+    "trade": "Trade",
+    "orderbook": "Order Book",
+    "trades": "Trades",
+    "chart": "Chart"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "positions": "Positions",
+    "orders": "Orders",
+    "history": "History",
+    "stats": {
+      "total_trades": "Total Trades",
+      "total_volume": "Total Volume",
+      "total_pnl": "Total P&L",
+      "active_positions": "Active Positions"
+    },
+    "batch_redeem": "Batch Redeem",
+    "export_data": "Export Data"
+  },
+  "oracle": {
+    "title": "Oracle Resolution",
+    "status": "Status",
+    "propose_outcome": "Propose Outcome",
+    "dispute_proposal": "Dispute Proposal",
+    "finalize": "Finalize Resolution",
+    "proposed_outcome": "Proposed Outcome",
+    "proposer": "Proposer",
+    "challenge_deadline": "Challenge Deadline",
+    "disputer": "Disputer",
+    "dispute_reason": "Dispute Reason",
+    "final_outcome": "Final Outcome",
+    "voided_reason": "Voided Reason",
+    "bond_warning": "You will need to deposit a bond. If your proposal is correct, you'll get it back. If disputed and wrong, you'll lose it.",
+    "dispute_warning": "You will need to deposit a dispute bond. If you're correct, you'll get it back plus the proposer's bond. If wrong, you'll lose it."
+  },
+  "comments": {
+    "title": "Discussion",
+    "placeholder": "Share your thoughts on this market...",
+    "post": "Post Comment",
+    "reply": "Reply",
+    "edit": "Edit",
+    "delete": "Delete",
+    "upvote": "Upvote",
+    "downvote": "Downvote",
+    "replies": "replies",
+    "no_comments": "No comments yet. Be the first to share your thoughts!",
+    "connect_to_comment": "Connect your wallet to join the discussion"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "by_volume": "By Volume",
+    "by_pnl": "By P&L",
+    "by_trades": "By Trades",
+    "by_win_rate": "By Win Rate",
+    "rank": "Rank",
+    "trader": "Trader",
+    "volume": "Volume",
+    "trades": "Trades",
+    "pnl": "P&L",
+    "win_rate": "Win Rate",
+    "markets": "Markets"
+  },
+  "toast": {
+    "success": "Success!",
+    "error": "Error!",
+    "warning": "Warning!",
+    "info": "Info"
+  }
+}

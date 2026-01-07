@@ -7,6 +7,8 @@ import { OrderbookModule } from './modules/orderbook/orderbook.module';
 import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { OracleModule } from './modules/oracle/oracle.module';
+import { CommentsModule } from './modules/comments/comments.module';
+import { CacheModule } from './modules/cache/cache.module';
 
 @Module({
   imports: [
@@ -14,6 +16,7 @@ import { OracleModule } from './modules/oracle/oracle.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    CacheModule,
     PrismaModule,
     MarketsModule,
     TradingModule,
@@ -21,6 +24,7 @@ import { OracleModule } from './modules/oracle/oracle.module';
     BlockchainModule,
     WebsocketModule,
     OracleModule,
+    CommentsModule,
   ],
 })
 export class AppModule {}
