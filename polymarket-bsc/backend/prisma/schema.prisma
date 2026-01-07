@@ -275,12 +275,20 @@ model User {
   totalVolume     Decimal  @default(0) @db.Decimal(20, 6)
   totalPnl        Decimal  @default(0) @db.Decimal(20, 6)
 
+  // Admin & Moderation
+  isAdmin         Boolean  @default(false)
+  isBanned        Boolean  @default(false)
+  banReason       String?
+  bannedAt        DateTime?
+
   // Metadata
   firstSeen       DateTime @default(now())
   lastActive      DateTime @default(now())
 
   @@index([totalVolume])
   @@index([totalPnl])
+  @@index([isAdmin])
+  @@index([isBanned])
 }
 
 model PriceHistory {
@@ -346,4 +354,33 @@ model CommentReaction {
 enum ReactionType {
   UPVOTE
   DOWNVOTE
+}
+
+// Admin Models
+
+model AdminAction {
+  id              String         @id @default(uuid())
+  adminAddress    String
+  actionType      AdminActionType
+  targetType      String         // 'market', 'user', 'oracle', etc.
+  targetId        String
+  description     String
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+
+  @@index([adminAddress])
+  @@index([actionType])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+enum AdminActionType {
+  MARKET_UPDATE
+  MARKET_VOID
+  MARKET_CLOSE
+  USER_BAN
+  USER_UNBAN
+  ORACLE_RESOLVE
+  ORACLE_DISPUTE
+  SYSTEM_CONFIG
 }

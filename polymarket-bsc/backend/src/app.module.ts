@@ -9,6 +9,7 @@ import { WebsocketModule } from './modules/websocket/websocket.module';
 import { OracleModule } from './modules/oracle/oracle.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CacheModule } from './modules/cache/cache.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CacheModule } from './modules/cache/cache.module';
     WebsocketModule,
     OracleModule,
     CommentsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
