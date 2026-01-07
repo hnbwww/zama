@@ -1,0 +1,140 @@
+[
+  {
+    "inputs": [
+      {"internalType": "address", "name": "_conditionalTokens", "type": "address"},
+      {"internalType": "address", "name": "_collateralToken", "type": "address"},
+      {"internalType": "address", "name": "_feeRecipient", "type": "address"}
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": false, "internalType": "uint256", "name": "yesReserve", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "noReserve", "type": "uint256"}
+    ],
+    "name": "PoolCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "provider", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "yesAmount", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "noAmount", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "liquidity", "type": "uint256"}
+    ],
+    "name": "LiquidityAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "trader", "type": "address"},
+      {"indexed": false, "internalType": "bool", "name": "buyYes", "type": "bool"},
+      {"indexed": false, "internalType": "uint256", "name": "amountIn", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "amountOut", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "fee", "type": "uint256"}
+    ],
+    "name": "Swap",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "yesAmount", "type": "uint256"},
+      {"internalType": "uint256", "name": "noAmount", "type": "uint256"}
+    ],
+    "name": "createPool",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "bool", "name": "buyYes", "type": "bool"},
+      {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+      {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
+    ],
+    "name": "swap",
+    "outputs": [{"internalType": "uint256", "name": "amountOut", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "collateralAmount", "type": "uint256"}
+    ],
+    "name": "addLiquidity",
+    "outputs": [{"internalType": "uint256", "name": "liquidity", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "liquidity", "type": "uint256"}
+    ],
+    "name": "removeLiquidity",
+    "outputs": [
+      {"internalType": "uint256", "name": "yesAmount", "type": "uint256"},
+      {"internalType": "uint256", "name": "noAmount", "type": "uint256"}
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "bool", "name": "buyYes", "type": "bool"},
+      {"internalType": "uint256", "name": "amountIn", "type": "uint256"}
+    ],
+    "name": "getAmountOut",
+    "outputs": [
+      {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
+      {"internalType": "uint256", "name": "fee", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"}
+    ],
+    "name": "getPrice",
+    "outputs": [
+      {"internalType": "uint256", "name": "yesPrice", "type": "uint256"},
+      {"internalType": "uint256", "name": "noPrice", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "", "type": "bytes32"}
+    ],
+    "name": "pools",
+    "outputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "yesReserve", "type": "uint256"},
+      {"internalType": "uint256", "name": "noReserve", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalLiquidity", "type": "uint256"},
+      {"internalType": "bool", "name": "initialized", "type": "bool"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "swapFee",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

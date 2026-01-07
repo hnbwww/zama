@@ -1,0 +1,122 @@
+[
+  {
+    "inputs": [
+      {"internalType": "address", "name": "_collateralToken", "type": "address"}
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": true, "internalType": "bytes32", "name": "questionId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "oracle", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "outcomeSlotCount", "type": "uint256"}
+    ],
+    "name": "ConditionPrepared",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": false, "internalType": "uint256", "name": "payoutNumerator", "type": "uint256"}
+    ],
+    "name": "ConditionResolved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": true, "internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "yesTokenId", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "noTokenId", "type": "uint256"}
+    ],
+    "name": "PositionSplit",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "questionId", "type": "bytes32"},
+      {"internalType": "address", "name": "oracle", "type": "address"}
+    ],
+    "name": "prepareCondition",
+    "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "splitPosition",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "mergePositions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "questionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "payoutNumerator", "type": "uint256"}
+    ],
+    "name": "resolveCondition",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"}
+    ],
+    "name": "redeemPositions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "address", "name": "account", "type": "address"},
+      {"internalType": "uint256", "name": "id", "type": "uint256"}
+    ],
+    "name": "balanceOf",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "collateralToken",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "", "type": "bytes32"}
+    ],
+    "name": "conditions",
+    "outputs": [
+      {"internalType": "bytes32", "name": "questionId", "type": "bytes32"},
+      {"internalType": "uint256", "name": "outcomeSlotCount", "type": "uint256"},
+      {"internalType": "address", "name": "oracle", "type": "address"},
+      {"internalType": "uint256", "name": "payoutNumerator", "type": "uint256"},
+      {"internalType": "bool", "name": "resolved", "type": "bool"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

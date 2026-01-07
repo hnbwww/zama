@@ -1,8 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAMMTrade, useAMMQuote } from '@/hooks/useAMMTrade';
+import { useCreateOrder } from '@/hooks/useOrderBookTrade';
+import { useApproveToken, useUSDCBalance, useTokenAllowance } from '@/hooks/useTokens';
+import { useContractAddresses } from '@/hooks/useContracts';
+import { useMarket } from '@/hooks/useMarkets';
+import { parseUnits } from 'viem';
 
 interface TradeFormProps {
   marketId: string;
@@ -15,13 +21,122 @@ export function TradeForm({ marketId }: TradeFormProps) {
   const [amount, setAmount] = useState('');
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
   const [price, setPrice] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [needsApproval, setNeedsApproval] = useState(false);
+
+  // Get market data
+  const { data: market } = useMarket(marketId);
+
+  // Contract addresses
+  const { usdc, amm, orderBook } = useContractAddresses();
+
+  // Balance and allowance
+  const { balance: usdcBalance } = useUSDCBalance(address);
+  const { allowance: ammAllowance, refetch: refetchAMMAllowance } = useTokenAllowance(
+    usdc,
+    address,
+    amm
+  );
+  const { allowance: orderBookAllowance, refetch: refetchOrderBookAllowance } = useTokenAllowance(
+    usdc,
+    address,
+    orderBook
+  );
+
+  // Trading hooks
+  const { swap, isPending: isSwapping, isConfirming: isSwapConfirming, isSuccess: isSwapSuccess } = useAMMTrade();
+  const { createOrder, isSigning } = useCreateOrder();
+  const { approve, isPending: isApproving, isConfirming: isApproveConfirming, isSuccess: isApproveSuccess } = useApproveToken();
+
+  // Quote for market orders
+  const conditionId = market?.conditionId as `0x${string}` | undefined;
+  const buyYes = outcome === 'YES';
+  const { amountOut, fee } = useAMMQuote(
+    orderType === 'MARKET' ? conditionId : undefined,
+    buyYes,
+    amount
+  );
+
+  // Check if approval is needed
+  useEffect(() => {
+    if (!amount || !address) {
+      setNeedsApproval(false);
+      return;
+    }
+
+    const amountWei = parseUnits(amount, 6);
+    const currentAllowance = orderType === 'MARKET' ? ammAllowance : orderBookAllowance;
+
+    setNeedsApproval(currentAllowance !== undefined && currentAllowance < amountWei);
+  }, [amount, ammAllowance, orderBookAllowance, orderType, address]);
+
+  // Refetch allowances after approval
+  useEffect(() => {
+    if (isApproveSuccess) {
+      if (orderType === 'MARKET') {
+        refetchAMMAllowance();
+      } else {
+        refetchOrderBookAllowance();
+      }
+    }
+  }, [isApproveSuccess, orderType, refetchAMMAllowance, refetchOrderBookAllowance]);
+
+  const handleApprove = async () => {
+    if (!amount || !usdc) return;
+
+    try {
+      setError(null);
+      const spender = orderType === 'MARKET' ? amm : orderBook;
+      // Approve a large amount to avoid repeated approvals
+      await approve(usdc, spender, '1000000', 6); // 1M USDC
+    } catch (err: any) {
+      setError(err.message || 'Approval failed');
+    }
+  };
 
   const handleTrade = async () => {
-    if (!isConnected) return;
+    if (!isConnected || !market || !conditionId) return;
 
-    // TODO: Implement trade logic
-    console.log('Trade:', { marketId, side, outcome, amount, orderType, price });
+    try {
+      setError(null);
+
+      if (orderType === 'MARKET') {
+        // AMM market order
+        await swap({
+          conditionId,
+          buyYes,
+          amount,
+          minAmountOut: '0', // In production, set slippage tolerance
+        });
+      } else {
+        // Limit order via OrderBook
+        if (!price) {
+          setError('Price is required for limit orders');
+          return;
+        }
+
+        await createOrder({
+          conditionId,
+          buyYes,
+          price,
+          size: amount,
+          expiry: 0, // No expiry
+        });
+      }
+    } catch (err: any) {
+      console.error('Trade error:', err);
+      setError(err.message || 'Trade failed');
+    }
   };
+
+  // Show success message
+  useEffect(() => {
+    if (isSwapSuccess) {
+      setAmount('');
+      setPrice('');
+      setError(null);
+    }
+  }, [isSwapSuccess]);
 
   if (!isConnected) {
     return (
@@ -34,9 +149,30 @@ export function TradeForm({ marketId }: TradeFormProps) {
     );
   }
 
+  const isProcessing = isSwapping || isSwapConfirming || isSigning || isApproving || isApproveConfirming;
+
   return (
     <div className="rounded-lg border p-6">
-      <h3 className="mb-4 text-lg font-semibold">Place Order</h3>
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Place Order</h3>
+        <div className="text-sm text-muted-foreground">
+          Balance: {parseFloat(usdcBalance).toFixed(2)} USDC
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {/* Success Message */}
+      {isSwapSuccess && (
+        <div className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-600 dark:bg-green-950 dark:text-green-400">
+          Trade executed successfully!
+        </div>
+      )}
 
       {/* Side Selector */}
       <div className="mb-4 grid grid-cols-2 gap-2">
@@ -143,6 +279,18 @@ export function TradeForm({ marketId }: TradeFormProps) {
             <span>Total Cost:</span>
             <span className="font-semibold">{amount} USDC</span>
           </div>
+          {orderType === 'MARKET' && amountOut && (
+            <div className="mt-1 flex justify-between text-muted-foreground">
+              <span>You receive:</span>
+              <span>~{parseFloat(amountOut).toFixed(2)} tokens</span>
+            </div>
+          )}
+          {orderType === 'MARKET' && fee && (
+            <div className="mt-1 flex justify-between text-muted-foreground">
+              <span>Fee:</span>
+              <span>{parseFloat(fee).toFixed(4)} USDC</span>
+            </div>
+          )}
           {orderType === 'LIMIT' && price && (
             <div className="mt-1 flex justify-between text-muted-foreground">
               <span>You receive:</span>
@@ -152,18 +300,48 @@ export function TradeForm({ marketId }: TradeFormProps) {
         </div>
       )}
 
+      {/* Approval Button */}
+      {needsApproval && (
+        <button
+          onClick={handleApprove}
+          disabled={isProcessing}
+          className="mb-2 w-full rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isApproving || isApproveConfirming
+            ? 'Approving...'
+            : `Approve USDC ${orderType === 'MARKET' ? 'for AMM' : 'for OrderBook'}`}
+        </button>
+      )}
+
       {/* Submit Button */}
       <button
         onClick={handleTrade}
-        disabled={!amount || (orderType === 'LIMIT' && !price)}
+        disabled={!amount || (orderType === 'LIMIT' && !price) || needsApproval || isProcessing}
         className={`w-full rounded-lg py-3 font-semibold ${
           side === 'BUY'
             ? 'bg-green-600 text-white hover:bg-green-700'
             : 'bg-red-600 text-white hover:bg-red-700'
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        } disabled:cursor-not-allowed disabled:opacity-50`}
       >
-        {side} {outcome}
+        {isProcessing
+          ? isSwapping || isSwapConfirming
+            ? 'Processing Trade...'
+            : isSigning
+            ? 'Sign Order...'
+            : 'Processing...'
+          : `${side} ${outcome}`}
       </button>
+
+      {/* Processing State */}
+      {isProcessing && (
+        <div className="mt-2 text-center text-sm text-muted-foreground">
+          {isSwapping && 'Confirm transaction in wallet...'}
+          {isSwapConfirming && 'Waiting for confirmation...'}
+          {isSigning && 'Please sign the order in your wallet...'}
+          {isApproving && 'Confirm approval in wallet...'}
+          {isApproveConfirming && 'Waiting for approval confirmation...'}
+        </div>
+      )}
     </div>
   );
 }

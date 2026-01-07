@@ -5,6 +5,7 @@ import { useMarket } from '@/hooks/useMarkets';
 import { useMarketTrades } from '@/hooks/useTrading';
 import { OrderBook } from '@/components/trading/OrderBook';
 import { TradeForm } from '@/components/trading/TradeForm';
+import { PriceChart } from '@/components/charts/PriceChart';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function MarketDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -107,6 +108,9 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
             </div>
+
+            {/* Price Chart */}
+            <PriceChart marketId={resolvedParams.id} height={350} />
 
             {/* Order Book */}
             <OrderBook marketId={resolvedParams.id} />
