@@ -6,16 +6,18 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./ConditionalTokens.sol";
+import "../oracle/OptimisticOracle.sol";
 
 /**
  * @title MarketFactory
- * @notice Factory contract for creating and managing prediction markets
+ * @notice Factory contract for creating and managing prediction markets with Optimistic Oracle
  */
 contract MarketFactory is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // References
     ConditionalTokens public immutable conditionalTokens;
+    OptimisticOracle public immutable oracle;
     IERC20 public immutable collateralToken;
 
     // Market parameters
@@ -40,11 +42,13 @@ contract MarketFactory is Ownable, ReentrancyGuard {
         uint256 noLiquidity;
     }
 
+    // Enhanced status enum following Polymarket model
     enum MarketStatus {
-        Active,
-        Resolved,
-        Disputed,
-        Cancelled
+        Open,           // Active trading
+        Closed,         // Trading stopped, awaiting resolution
+        Resolving,      // Oracle resolution in progress (Proposed/Disputed)
+        Resolved,       // Final outcome determined
+        Voided          // Market cancelled/invalid
     }
 
     // Storage
@@ -62,16 +66,32 @@ contract MarketFactory is Ownable, ReentrancyGuard {
         uint256 resolutionTime
     );
 
+    event MarketClosed(
+        bytes32 indexed conditionId,
+        uint256 timestamp
+    );
+
+    event ResolutionRequested(
+        bytes32 indexed conditionId,
+        uint256 timestamp
+    );
+
+    event MarketResolving(
+        bytes32 indexed conditionId,
+        uint256 proposedOutcome,
+        uint256 challengeDeadline
+    );
+
     event MarketResolved(
         bytes32 indexed conditionId,
         uint256 outcome,
         uint256 timestamp
     );
 
-    event MarketDisputed(
+    event MarketVoided(
         bytes32 indexed conditionId,
-        address indexed disputer,
-        string reason
+        string reason,
+        uint256 timestamp
     );
 
     event LiquidityAdded(
@@ -93,6 +113,7 @@ contract MarketFactory is Ownable, ReentrancyGuard {
 
     constructor(
         address _conditionalTokens,
+        address _oracle,
         address _collateralToken,
         uint256 _marketCreationStake,
         uint256 _minInitialLiquidity,
@@ -100,11 +121,13 @@ contract MarketFactory is Ownable, ReentrancyGuard {
         address _feeRecipient
     ) Ownable(msg.sender) {
         require(_conditionalTokens != address(0), "Invalid CTF address");
+        require(_oracle != address(0), "Invalid oracle address");
         require(_collateralToken != address(0), "Invalid collateral");
         require(_feeRecipient != address(0), "Invalid fee recipient");
         require(_platformFee <= 1000, "Fee too high"); // Max 10%
 
         conditionalTokens = ConditionalTokens(_conditionalTokens);
+        oracle = OptimisticOracle(_oracle);
         collateralToken = IERC20(_collateralToken);
         marketCreationStake = _marketCreationStake;
         minInitialLiquidity = _minInitialLiquidity;
@@ -159,7 +182,7 @@ contract MarketFactory is Ownable, ReentrancyGuard {
             createdAt: block.timestamp,
             resolutionTime: resolutionTime,
             resolutionSource: resolutionSource,
-            status: MarketStatus.Active,
+            status: MarketStatus.Open,
             totalVolume: 0,
             yesLiquidity: initialLiquidity,
             noLiquidity: initialLiquidity
@@ -194,44 +217,116 @@ contract MarketFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Resolve a market
-     * @param conditionId The market to resolve
-     * @param outcome The winning outcome (0 = NO, 1 = YES)
+     * @notice Close market (stop trading)
+     * @param conditionId The market to close
      */
-    function resolveMarket(bytes32 conditionId, uint256 outcome) external onlyOwner {
+    function closeMarket(bytes32 conditionId) external {
         Market storage market = markets[conditionId];
-        require(market.status == MarketStatus.Active, "Market not active");
+        require(market.status == MarketStatus.Open, "Market not open");
+        require(
+            msg.sender == market.creator ||
+            msg.sender == owner() ||
+            block.timestamp >= market.resolutionTime,
+            "Not authorized"
+        );
+
+        market.status = MarketStatus.Closed;
+
+        emit MarketClosed(conditionId, block.timestamp);
+    }
+
+    /**
+     * @notice Request resolution from oracle
+     * @param conditionId The market to resolve
+     */
+    function requestResolution(bytes32 conditionId) external {
+        Market storage market = markets[conditionId];
+        require(market.status == MarketStatus.Closed, "Market not closed");
         require(block.timestamp >= market.resolutionTime, "Resolution time not reached");
-        require(outcome <= 1, "Invalid outcome");
 
-        // Resolve in CTF
-        conditionalTokens.resolveCondition(conditionId, outcome);
+        // Create oracle request
+        oracle.requestResolution(
+            conditionId,
+            market.question,
+            market.resolutionSource
+        );
 
-        // Update market status
-        market.status = MarketStatus.Resolved;
+        market.status = MarketStatus.Resolving;
 
-        // Return creation stake to creator
+        emit ResolutionRequested(conditionId, block.timestamp);
+    }
+
+    /**
+     * @notice Update market status when oracle proposal is made
+     * @dev Called when checking oracle status
+     * @param conditionId The market ID
+     */
+    function updateMarketStatus(bytes32 conditionId) external {
+        Market storage market = markets[conditionId];
+        require(market.status == MarketStatus.Resolving, "Not in resolving state");
+
+        OptimisticOracle.Request memory request = oracle.getRequest(conditionId);
+
+        if (request.status == OptimisticOracle.RequestStatus.Proposed) {
+            emit MarketResolving(conditionId, request.proposedOutcome, request.challengeDeadline);
+        } else if (request.status == OptimisticOracle.RequestStatus.Resolved) {
+            _finalizeResolution(conditionId, request.finalOutcome);
+        } else if (request.status == OptimisticOracle.RequestStatus.Voided) {
+            market.status = MarketStatus.Voided;
+            emit MarketVoided(conditionId, "Oracle voided", block.timestamp);
+        }
+    }
+
+    /**
+     * @notice Finalize market resolution after oracle confirms
+     * @param conditionId The market ID
+     * @param outcome The final outcome
+     */
+    function _finalizeResolution(bytes32 conditionId, uint256 outcome) private {
+        Market storage market = markets[conditionId];
+
+        if (outcome == 2) {
+            // INVALID outcome -> void market
+            market.status = MarketStatus.Voided;
+            emit MarketVoided(conditionId, "Invalid outcome", block.timestamp);
+        } else {
+            // Valid outcome (0 or 1)
+            conditionalTokens.resolveCondition(conditionId, outcome);
+            market.status = MarketStatus.Resolved;
+
+            // Return creation stake to creator
+            if (marketCreationStake > 0) {
+                collateralToken.safeTransfer(market.creator, marketCreationStake);
+            }
+
+            emit MarketResolved(conditionId, outcome, block.timestamp);
+        }
+    }
+
+    /**
+     * @notice Emergency void market (owner only)
+     * @param conditionId The market to void
+     * @param reason Reason for voiding
+     */
+    function emergencyVoid(bytes32 conditionId, string calldata reason) external onlyOwner {
+        Market storage market = markets[conditionId];
+        require(market.status != MarketStatus.Resolved, "Already resolved");
+        require(market.status != MarketStatus.Voided, "Already voided");
+
+        market.status = MarketStatus.Voided;
+
+        // Return creation stake
         if (marketCreationStake > 0) {
             collateralToken.safeTransfer(market.creator, marketCreationStake);
         }
 
-        emit MarketResolved(conditionId, outcome, block.timestamp);
-    }
+        // If oracle request exists, void it
+        OptimisticOracle.Request memory request = oracle.getRequest(conditionId);
+        if (request.timestamp > 0 && request.status != OptimisticOracle.RequestStatus.Voided) {
+            oracle.voidMarket(conditionId, reason);
+        }
 
-    /**
-     * @notice Dispute a market resolution
-     * @param conditionId The market to dispute
-     * @param reason Dispute reason
-     */
-    function disputeMarket(bytes32 conditionId, string calldata reason) external {
-        Market storage market = markets[conditionId];
-        require(market.status == MarketStatus.Active, "Market not active");
-        require(block.timestamp >= market.resolutionTime &&
-                block.timestamp <= market.resolutionTime + 48 hours, "Dispute period expired");
-
-        market.status = MarketStatus.Disputed;
-
-        emit MarketDisputed(conditionId, msg.sender, reason);
+        emit MarketVoided(conditionId, reason, block.timestamp);
     }
 
     /**
@@ -240,6 +335,7 @@ contract MarketFactory is Ownable, ReentrancyGuard {
      * @param volume Volume to add
      */
     function updateVolume(bytes32 conditionId, uint256 volume) external {
+        require(markets[conditionId].status == MarketStatus.Open, "Market not open");
         // In production, this should be restricted to authorized trading contracts
         markets[conditionId].totalVolume += volume;
         emit VolumeUpdated(conditionId, markets[conditionId].totalVolume);
@@ -296,5 +392,12 @@ contract MarketFactory is Ownable, ReentrancyGuard {
      */
     function getMarketCount() external view returns (uint256) {
         return marketIds.length;
+    }
+
+    /**
+     * @notice Check if market allows trading
+     */
+    function isTradingAllowed(bytes32 conditionId) external view returns (bool) {
+        return markets[conditionId].status == MarketStatus.Open;
     }
 }

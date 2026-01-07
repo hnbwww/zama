@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /**
  * @title ConditionalTokens
  * @notice Core contract for creating and managing conditional tokens (YES/NO tokens)
- * @dev Implements ERC1155 for efficient token management
+ * @dev Implements ERC1155 for efficient token management with Void support
  */
 contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -25,6 +25,7 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
         address oracle;
         uint256 payoutNumerator; // 0 = NO wins, 1 = YES wins, 2 = undecided
         bool resolved;
+        bool voided; // Market was voided
     }
 
     // Storage
@@ -44,6 +45,11 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
         uint256 payoutNumerator
     );
 
+    event ConditionVoided(
+        bytes32 indexed conditionId,
+        uint256 timestamp
+    );
+
     event PositionSplit(
         address indexed user,
         bytes32 indexed conditionId,
@@ -61,6 +67,12 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
     );
 
     event PayoutRedeemed(
+        address indexed user,
+        bytes32 indexed conditionId,
+        uint256 amount
+    );
+
+    event VoidRefundClaimed(
         address indexed user,
         bytes32 indexed conditionId,
         uint256 amount
@@ -87,7 +99,8 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
             outcomeSlotCount: 2, // YES/NO
             oracle: oracle,
             payoutNumerator: 2, // Undecided
-            resolved: false
+            resolved: false,
+            voided: false
         });
 
         // Generate token IDs for YES and NO outcomes
@@ -106,6 +119,7 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
      */
     function splitPosition(bytes32 conditionId, uint256 amount) external nonReentrant {
         require(!conditions[conditionId].resolved, "Condition already resolved");
+        require(!conditions[conditionId].voided, "Condition voided");
         require(amount > 0, "Amount must be greater than 0");
 
         // Transfer collateral from user
@@ -151,6 +165,7 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
         Condition storage condition = conditions[conditionId];
         require(msg.sender == condition.oracle, "Only oracle can resolve");
         require(!condition.resolved, "Already resolved");
+        require(!condition.voided, "Condition voided");
         require(outcome <= 1, "Invalid outcome");
 
         condition.payoutNumerator = outcome;
@@ -160,12 +175,29 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Void a condition (called by oracle)
+     * @param conditionId The condition ID
+     */
+    function voidCondition(bytes32 conditionId) external {
+        Condition storage condition = conditions[conditionId];
+        require(msg.sender == condition.oracle, "Only oracle can void");
+        require(!condition.resolved, "Already resolved");
+        require(!condition.voided, "Already voided");
+
+        condition.voided = true;
+        condition.payoutNumerator = 2; // Mark as invalid
+
+        emit ConditionVoided(conditionId, block.timestamp);
+    }
+
+    /**
      * @notice Redeem winning tokens for collateral
      * @param conditionId The condition ID
      */
     function redeemPositions(bytes32 conditionId) external nonReentrant {
         Condition memory condition = conditions[conditionId];
         require(condition.resolved, "Condition not resolved");
+        require(!condition.voided, "Condition voided - use claimVoidRefund");
 
         uint256 winningTokenId = positionIds[conditionId][condition.payoutNumerator];
         uint256 winningBalance = balanceOf(msg.sender, winningTokenId);
@@ -179,6 +211,122 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
         collateralToken.safeTransfer(msg.sender, winningBalance);
 
         emit PayoutRedeemed(msg.sender, conditionId, winningBalance);
+    }
+
+    /**
+     * @notice Claim refund for voided market
+     * @dev Users can redeem both YES and NO tokens proportionally
+     * @param conditionId The condition ID
+     */
+    function claimVoidRefund(bytes32 conditionId) external nonReentrant {
+        Condition memory condition = conditions[conditionId];
+        require(condition.voided, "Condition not voided");
+
+        uint256 yesTokenId = positionIds[conditionId][1];
+        uint256 noTokenId = positionIds[conditionId][0];
+
+        uint256 yesBalance = balanceOf(msg.sender, yesTokenId);
+        uint256 noBalance = balanceOf(msg.sender, noTokenId);
+
+        require(yesBalance > 0 || noBalance > 0, "No tokens to refund");
+
+        // Calculate refund: user gets back proportional to their holdings
+        // For voided markets, YES and NO tokens are treated equally
+        // Refund = (yesBalance + noBalance) / 2
+        // This assumes users originally split collateral into equal YES/NO pairs
+        uint256 totalRefund = (yesBalance + noBalance) / 2;
+
+        require(totalRefund > 0, "No refund available");
+
+        // Burn tokens (up to the refund amount from each)
+        uint256 yesToBurn = yesBalance > totalRefund ? totalRefund : yesBalance;
+        uint256 noToBurn = noBalance > totalRefund ? totalRefund : noBalance;
+
+        if (yesToBurn > 0) {
+            _burn(msg.sender, yesTokenId, yesToBurn);
+        }
+        if (noToBurn > 0) {
+            _burn(msg.sender, noTokenId, noToBurn);
+        }
+
+        // Transfer refund
+        collateralToken.safeTransfer(msg.sender, totalRefund);
+
+        emit VoidRefundClaimed(msg.sender, conditionId, totalRefund);
+    }
+
+    /**
+     * @notice Batch redeem for multiple conditions
+     * @param conditionIds Array of condition IDs
+     */
+    function batchRedeemPositions(bytes32[] calldata conditionIds) external nonReentrant {
+        uint256 totalPayout = 0;
+
+        for (uint256 i = 0; i < conditionIds.length; i++) {
+            bytes32 conditionId = conditionIds[i];
+            Condition memory condition = conditions[conditionId];
+
+            if (!condition.resolved || condition.voided) {
+                continue; // Skip unresolved or voided conditions
+            }
+
+            uint256 winningTokenId = positionIds[conditionId][condition.payoutNumerator];
+            uint256 winningBalance = balanceOf(msg.sender, winningTokenId);
+
+            if (winningBalance > 0) {
+                _burn(msg.sender, winningTokenId, winningBalance);
+                totalPayout += winningBalance;
+                emit PayoutRedeemed(msg.sender, conditionId, winningBalance);
+            }
+        }
+
+        require(totalPayout > 0, "No tokens to redeem");
+        collateralToken.safeTransfer(msg.sender, totalPayout);
+    }
+
+    /**
+     * @notice Batch claim void refunds for multiple conditions
+     * @param conditionIds Array of condition IDs
+     */
+    function batchClaimVoidRefunds(bytes32[] calldata conditionIds) external nonReentrant {
+        uint256 totalRefund = 0;
+
+        for (uint256 i = 0; i < conditionIds.length; i++) {
+            bytes32 conditionId = conditionIds[i];
+            Condition memory condition = conditions[conditionId];
+
+            if (!condition.voided) {
+                continue; // Skip non-voided conditions
+            }
+
+            uint256 yesTokenId = positionIds[conditionId][1];
+            uint256 noTokenId = positionIds[conditionId][0];
+
+            uint256 yesBalance = balanceOf(msg.sender, yesTokenId);
+            uint256 noBalance = balanceOf(msg.sender, noTokenId);
+
+            if (yesBalance > 0 || noBalance > 0) {
+                uint256 refund = (yesBalance + noBalance) / 2;
+
+                if (refund > 0) {
+                    uint256 yesToBurn = yesBalance > refund ? refund : yesBalance;
+                    uint256 noToBurn = noBalance > refund ? refund : noBalance;
+
+                    if (yesToBurn > 0) {
+                        _burn(msg.sender, yesTokenId, yesToBurn);
+                    }
+                    if (noToBurn > 0) {
+                        _burn(msg.sender, noTokenId, noToBurn);
+                    }
+
+                    totalRefund += refund;
+                    emit VoidRefundClaimed(msg.sender, conditionId, refund);
+                }
+            }
+        }
+
+        require(totalRefund > 0, "No refund available");
+        collateralToken.safeTransfer(msg.sender, totalRefund);
     }
 
     /**
@@ -202,6 +350,15 @@ contract ConditionalTokens is ERC1155, Ownable, ReentrancyGuard {
         Condition memory condition = conditions[conditionId];
         resolved = condition.resolved;
         outcome = condition.payoutNumerator;
+    }
+
+    /**
+     * @notice Check if a condition is voided
+     * @param conditionId The condition ID
+     * @return voided True if voided
+     */
+    function isVoided(bytes32 conditionId) external view returns (bool) {
+        return conditions[conditionId].voided;
     }
 
     /**
